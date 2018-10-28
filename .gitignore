@@ -1,0 +1,5 @@
+# Ignore all vendor files and folders.
+vendor/*
+
+# Ignore the binary
+jqd
