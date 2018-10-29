@@ -69,6 +69,7 @@ supports search parameters via query parameters. The supported values are:
 | rawQuery | A raw JQL query to run. |
 
 There are optional parameters to mutate the response with.
+
 | Value | Details |
 | ----- | ------- |
 | pretty | Pretty prints the JSON response. |
