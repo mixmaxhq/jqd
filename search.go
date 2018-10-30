@@ -95,9 +95,9 @@ func queryForParams(params SearchParams) string {
 
 	if len(params.Components) > 0 {
 		if len(params.Components) == 1 {
-			builder.Eq(jiraquery.Word("components"), jiraquery.Word(params.Components[0]))
+			builder.Eq(jiraquery.Word("component"), jiraquery.Word(params.Components[0]))
 		} else {
-			builder.In(jiraquery.Word("components"), jiraquery.List(params.Components...))
+			builder.In(jiraquery.Word("component"), jiraquery.List(params.Components...))
 		}
 	}
 
