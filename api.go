@@ -46,7 +46,7 @@ func searchHandler(w http.ResponseWriter, r *http.Request) {
 	query := queryForParams(params)
 
 	// Retrieve the search results from Jira
-	results, err := searchIssues(query)
+	results, err := searchIssues(query, params.GroupBy)
 	if err != nil {
 		logrus.Info("failed to search issues, err: ", err)
 		w.WriteHeader(http.StatusInternalServerError)

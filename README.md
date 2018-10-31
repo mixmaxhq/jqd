@@ -74,6 +74,7 @@ There are optional parameters to mutate the response with.
 | ----- | ------- |
 | pretty | Pretty prints the JSON response. |
 | aggregate | Aggregates the counts per label. |
+| groupBy | The field to group the analysis by. If not provided, defaults to `labels`, currently excepted alternative option is `component`. |
 
 
 ## Developing
