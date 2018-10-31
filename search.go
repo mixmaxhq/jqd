@@ -11,41 +11,82 @@ import (
 	"github.com/ttacon/jiraquery"
 )
 
+// processIssuesByLabel returns a function that indexes the issues by their
+// labels.
+func processIssueByLabel(categories map[string]map[string]int) func(i jira.Issue) error {
+	return func(i jira.Issue) error {
+		// If there aren't any labels, don't do anything at the
+		// moment.
+		if len(i.Fields.Labels) == 0 {
+			return nil
+		}
+
+		// Process the issues labels.
+		for _, label := range i.Fields.Labels {
+			label = strings.TrimSpace(label)
+
+			issues, ok := categories[label]
+			if !ok {
+				issues = map[string]int{}
+				categories[label] = issues
+			}
+			year, month, day := time.Time(i.Fields.Created).Date()
+			timeKey := fmt.Sprintf("%d:%d:%d", year, month, day)
+
+			count, _ := issues[timeKey]
+			issues[timeKey] = count + 1
+		}
+		return nil
+	}
+}
+
+// processIssuesByComponent returns a function that indexes the issues by their
+// components.
+func processIssueByComponent(categories map[string]map[string]int) func(i jira.Issue) error {
+	return func(i jira.Issue) error {
+		// If there aren't any components, don't do anything at the
+		// moment.
+		if len(i.Fields.Components) == 0 {
+			return nil
+		}
+
+		// Process the issue's components.
+		for _, component := range i.Fields.Components {
+			componentName := strings.TrimSpace(component.Name)
+
+			issues, ok := categories[componentName]
+			if !ok {
+				issues = map[string]int{}
+				categories[componentName] = issues
+			}
+			year, month, day := time.Time(i.Fields.Created).Date()
+			timeKey := fmt.Sprintf("%d:%d:%d", year, month, day)
+
+			count, _ := issues[timeKey]
+			issues[timeKey] = count + 1
+		}
+		return nil
+	}
+}
+
 // searchIssues searches Jira with the given query.
-func searchIssues(query string) (*Results, error) {
+func searchIssues(query, groupBy string) (*Results, error) {
 	var (
-		issueCategories = map[string]map[string]int{}
+		categories = map[string]map[string]int{}
 	)
+
+	var issueHandler func(jira.Issue) error = processIssueByLabel(categories)
+	if groupBy == "component" {
+		issueHandler = processIssueByComponent(categories)
+	}
 
 	// Let's search for those issues! Note that we don't currently have a
 	// way to identify how many issues we may process here, so
 	// https://giphy.com/gifs/OCu7zWojqFA1W/html5.
 	err := jiraClient.Issue.SearchPages(query,
 		&jira.SearchOptions{},
-		func(i jira.Issue) error {
-			// If there aren't any labels, don't do anything at the
-			// moment.
-			if len(i.Fields.Labels) == 0 {
-				return nil
-			}
-
-			// Process the issues labels.
-			for _, label := range i.Fields.Labels {
-				label = strings.TrimSpace(label)
-
-				issues, ok := issueCategories[label]
-				if !ok {
-					issues = map[string]int{}
-					issueCategories[label] = issues
-				}
-				year, month, day := time.Time(i.Fields.Created).Date()
-				timeKey := fmt.Sprintf("%d:%d:%d", year, month, day)
-
-				count, _ := issues[timeKey]
-				issues[timeKey] = count + 1
-			}
-			return nil
-		})
+		issueHandler,
+	)
 
 	if err != nil {
 		return nil, err
@@ -53,7 +94,7 @@ func searchIssues(query string) (*Results, error) {
 
 	// Clean up the data by stretching out all data points across the
 	// maximum time range.
-	results := sanitizeData(issueCategories)
+	results := sanitizeData(categories)
 
 	return results, err
 }
@@ -95,7 +136,9 @@ func queryForParams(params SearchParams) string {
 
 	if len(params.Components) > 0 {
 		if len(params.Components) == 1 {
-			builder.Eq(jiraquery.Word("component"), jiraquery.Word(params.Components[0]))
+			builder.Eq(
+				jiraquery.Word("component"),
+				jiraquery.Word(fmt.Sprintf("%q", params.Components[0])))
 		} else {
 			builder.In(jiraquery.Word("component"), jiraquery.List(params.Components...))
 		}
@@ -130,8 +173,9 @@ type SearchParams struct {
 	RawQuery       string     `json:"rawQuery"`
 
 	// Options
-	Aggregate bool `json:"aggregate"`
-	Pretty    bool `json:"pretty"`
+	Aggregate bool   `json:"aggregate"`
+	Pretty    bool   `json:"pretty"`
+	GroupBy   string `json:"groupBy"`
 }
 
 func JSONTimeConverter(raw string) reflect.Value {
