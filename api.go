@@ -21,6 +21,7 @@ func startRouter() {
 	mux := httptreemux.NewContextMux()
 
 	mux.GET("/api/search", searchHandler)
+	mux.GET("/api/meta/components", componentListHandler)
 
 	c := cors.New(cors.Options{
 		AllowedOrigins:   allowedCORSOrigins,
@@ -28,6 +29,47 @@ func startRouter() {
 	})
 
 	http.ListenAndServe(httpAddr, c.Handler(mux))
+}
+
+// componentListHandler handles listing components for a project.
+func componentListHandler(w http.ResponseWriter, r *http.Request) {
+	// Parse our search parameters.
+	var params SearchParams
+	dec := schema.NewDecoder()
+	dec.RegisterConverter(time.Now(), JSONTimeConverter)
+	if err := dec.Decode(&params, r.URL.Query()); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		logrus.Info("failed to decode query params, err: ", err)
+		return
+	}
+
+	if len(params.Project) == 0 {
+		w.WriteHeader(http.StatusBadRequest)
+		logrus.Info("called component list w/o project")
+		return
+	}
+
+	comps, err := listComponents(params.Project)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		logrus.Info("failed to list components for project, err: ", err)
+		return
+	}
+
+	encoder := json.NewEncoder(w)
+
+	// If the user wanted a pretty JSON response, make sure that we set a
+	// JSON indent.
+	if _, ok := r.URL.Query()["pretty"]; ok {
+		encoder.SetIndent("", "  ")
+	}
+
+	w.Header().Add("Content-Type", "application/json")
+
+	if err := encoder.Encode(comps); err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
 }
 
 // searchHandler handles requests to the /api/search endpoint.
